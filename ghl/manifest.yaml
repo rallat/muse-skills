@@ -1,5 +1,6 @@
 version: 1
 connector: ghl
+category: business
 display_name: HighLevel
 description: Manage HighLevel CRM, communications, commerce, content, and settings
 icon: gohighlevel
@@ -149,6 +150,7 @@ actions:
         label: Manage automations
         approval_phrase: add or remove campaign and workflow enrollments in HighLevel
       messaging.manage:
+        require_fresh_approval: true
         label: Manage messaging
         approval_phrase: manage conversations or send, schedule, or cancel messages in HighLevel
       ads.manage:
