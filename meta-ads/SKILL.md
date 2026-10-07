@@ -2,7 +2,6 @@
 name: "meta_ads"
 title: "Meta Ads"
 description: "Create, write, or manage Meta ads and assets: ad copy, campaigns, spend, reports, audiences, catalogs, product feeds, feed refresh schedules, experiments, and policy. Always load for any request to create or write an ad, or to advertise a product or service, even when no platform is named; this includes sensitive or restricted categories. Always load for any question asking what a Meta, Facebook, or Instagram advertising policy means, allows, prohibits, or requires, including a standalone policy-definition question with no account context. Those questions must use ads_policy_tool, never browser search or memory. Load for a specifically named catalog or feed with an upload or refresh-schedule request; use Ads reads to resolve ownership before writing. Generic unnamed feeds need context. Whether an image, claim or piece of copy may be used in an ad is ALWAYS a Meta Ads task — 'can I use this in an ad', 'is it allowed', 'is this against policy', and any rights, likeness, celebrity, logo or trademark question about advertising with an image, including a follow-up about one just generated. Those are ads-policy questions, not general legal ones. An ad request uses the campaign workflow unless explicitly only an image or organic post."
-icon: "meta_ads"
 metadata: { "includeInPrompt": true }
 ---
 
@@ -25,6 +24,19 @@ about their bank, card, or business finances rather than their advertising.
 Discover availability with `list-tools --names-only`, inspect selected tools
 with `describe-tool`, and invoke them with `call-tool`, including
 `ads_creative_upload_media` for new media.
+
+**Spend is visible here; billing is not.** `amount_spent` is delivery spend for
+the entity level and window you queried (`last_28d` when you pass neither
+`date_preset` nor `time_range`), so name both whenever you quote it, and call
+`maximum` "all time", never "since your last bill". It is not the figure on an
+invoice or on the account spending limit. No Ads tool returns the balance owed,
+prepaid funds, the account spending limit, payments, invoices, or ad credits:
+not when a credit was granted or applied, how much of it is used, or what is
+left. Never derive any of these from spend, a budget, or a figure the user
+gives you. Tell the user only that you can't see billing or credit details from
+here, never which tools or data you lack, and point them to Billing & Payments
+in Ads Manager. This is the one case where Ads Manager is the answer, because no
+tool can return it.
 
 ## Policy questions: mandatory route
 
@@ -96,7 +108,7 @@ task touches **before** answering, not after drafting.
 | `references/campaign-execution.md` | Only when preparing the final review, collecting its exact approval, creating the paused hierarchy, presenting its immediate handoff, or recovering partial creation. |
 | `references/campaign-handoff.md` | Only after the advertiser selects a post-create delivery or editing action. |
 | `references/campaign-manual-setup.md` | When a write was rejected as not available for this ad account — by a tool result, or quoted by the advertiser from an earlier attempt — or the advertiser asks to set the campaign up themselves in Ads Manager. Read it before explaining that rejection. |
-| `references/writes.md` | Before executing a standalone create, update, activate, pause, delete, connect, or upload. Complete campaigns load it only when their staged references direct. |
+| `references/writes.md` | Before executing a standalone create, update, activate, pause, delete, connect, or upload, and before saying whether a pixel, dataset, or Conversions API setup step can be done here. Complete campaigns load it only when their staged references direct. |
 
 ## Tooling
 Use `exec` to run the installed binary directly:
@@ -313,13 +325,15 @@ tool that is not there.
 5. **Consume output directly**: use the returned JSON. Report errors faithfully;
    a failed call is unavailable evidence, not a finding.
 6. **Cite named Ads entities**: call `ads.resolve_entities` once before every
-   response that mentions an ad account, campaign, ad set, or ad from Ads tool
-   results. Include every such entity with the exact returned name and ID. For
-   campaigns, ad sets, and ads, also include the returned owning ad account ID.
-   Copy each returned citation marker exactly into the response. Do this even
-   if the user did not ask for links. If the resolver is unavailable or an
-   entity is missing a required ID, mention it without a citation. Do not
-   invent names or IDs.
+   response that mentions an ad account, campaign, ad set, or ad, including the
+   account the user gave you. Include every such entity with the exact name and
+   ID from Ads tool results; when a tool returns only an account ID, its name
+   is in `entity_names`. For campaigns, ad sets, and ads, also include the
+   returned owning ad account ID. Copy each returned citation marker exactly
+   into the response. Do this for short answers, lists, and tables, even if the
+   user did not ask for links. Never skip the call: write an entity as plain
+   text only when no tool result gives its name and ID, or when the resolver
+   call itself returns an error. Do not invent names or IDs.
 
 Before the first call, privately inventory every requested result and action. For each one:
 select and describe the tool, resolve IDs and current state, obtain any required
