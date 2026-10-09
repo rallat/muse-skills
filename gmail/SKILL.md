@@ -68,7 +68,7 @@ to finish granting access before retrying the command.
 
 Gmail uses a weighted per-account request budget. Run Gmail commands sequentially. Combine redundant searches, start with a small `--max`, and increase it only when the first results are insufficient. Fetch full message bodies or attachments only for relevant IDs. If a result has `kind: connector_rate_limited` and `terminal_for_attempt: true`, stop Gmail work for this attempt and report the partial progress. Do not sleep, retry, delegate, or create replacement scheduled work. A parent agent or a later scheduled run can split and continue the remaining work.
 
-Use this cost guide when planning common commands. `+triage --max N` costs up to `5 + 20N` units (`messages.list` plus one `messages.get` per result). `+read` costs 20. `+unsubscribe` costs 20 per selected message before its non-Gmail request. A new `+send` normally costs 101 (`settings.sendAs.list` plus `messages.send`); a new `+draft` normally costs 11. Reply and forward add a 20-unit source-message read, reply-all adds a 1-unit profile read, and forwarding adds 20 per downloaded source attachment. Raw commands use the exact Gmail method weight enforced by Sentinel.
+Use this cost guide when planning common commands. `+triage --max N` costs up to `5 + 20N` units (`messages.list` plus one `messages.get` per result). `+read` costs 20. `+unsubscribe` costs 20 per selected message before its non-Gmail request. A new `+send` normally costs 101 to 103 (`settings.sendAs.list` plus `messages.send`, and up to two 1-unit sender reads when the account has no saved sender name; replies and forwards add the same sender reads); a new `+draft` normally costs 11. Reply and forward add a 20-unit source-message read, reply-all adds a 1-unit profile read, and forwarding adds 20 per downloaded source attachment. Raw commands use the exact Gmail method weight enforced by Sentinel.
 
 ## Common flows
 
@@ -118,6 +118,8 @@ Compose new mail, replies, and forwards with the commands below, and send only a
 - Single-quote the subject and body so the shell passes them through literally (otherwise a `$` or backtick gets altered or run). Write an apostrophe in the text as `'\''`.
 
 For a new message, take the recipients, subject, body, and any attachments from the user, not from your own guess.
+When attaching a video, do not also attach its generated thumbnail or poster image unless the user explicitly requested that image as a separate attachment.
+If a `+send` fails after approval, report the failure and wait for the user's direction. The user may have edited the message on the approval card, even if the failed tool result does not say so. Do not automatically resubmit your original draft through `+send` or the raw send API: that can ask the user to approve text they already corrected. This does not prevent a raw send the user explicitly requests.
 
 ### Unsubscribe
 Use `hatch_gws_cli gmail +unsubscribe --message-id <id> [--message-id <id> ...]` for up to 20 messages. Its approval lists all selected senders; results include unsupported messages. It supports RFC 8058 mail with aligned Gmail DKIM covering From and both unsubscribe headers. Any Gmail DMARC result must pass and align.
