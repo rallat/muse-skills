@@ -153,6 +153,10 @@
 
 - `order_submission_rejected` confirms rejection of this submission only; `merchant_outcome_unknown` leaves it unconfirmed. Earlier bookings and funding remain unknown in both cases. Do not claim that no booking exists, that no payment was captured, or that an authorization will be released. Stop; do not retry `book` or start a replacement purchase. A missing `booking-status` order or renewed permission resolves neither booking nor funding.
 
+- `supplier_confirmed_details_pending` means the supplier reports confirmation, but booking details are unavailable. Tell the traveler their reservation was reported confirmed and this flow cannot retrieve the missing booking reference or ticket details; do not claim ticket issuance or settled payment. `booking_outcome_unknown` means confirmation is still unknown. Neither permits another `book` call or a replacement purchase.
+
+- Keep the returned `checkout_operation_id` and original `offer_id` for recovery. `/opt/hatch/bin/duffel booking-status --checkout-operation-id OPERATION_ID --offer-id ORIGINAL_OFFER_ID` reads saved evidence only, including after restart or offer expiry. It does not contact the provider or reconcile later changes. Tell the traveler this flow cannot fetch missing booking details or resolve an unknown outcome. Do not promise booking references or tickets from later status checks. `observation_persistence: unconfirmed` means the response distinction may not survive restart; unavailable or absent evidence never proves no booking. Do not refresh the offer to recover this purchase or repeatedly poll this local read. Later reconciliation is not available in this flow.
+
 - A timeout, a 5xx, `result_unknown: true` or an error saying the outcome is unknown or unconfirmed means the booking or cancellation may already have happened. Run `booking-status` before anything else, and never resend `book` or `cancel-booking` or claim an outcome.
 
 - An uncertain customer-profile creation has not started payment. Ask for profile recovery instead of creating the profile again.

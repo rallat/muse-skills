@@ -126,6 +126,12 @@ Generated Feed content and its edition and source prompt.
 
 - `beat` uses `text` and is nullable.
 
+- `reader_response` uses `text` and is nullable.
+
+- `stake_type` uses `text` and is nullable.
+
+- `act_by` uses `date` and is nullable.
+
 ## Keys and relationships
 
 - PRIMARY KEY `units_pkey` covers `unit_id`.

@@ -82,6 +82,8 @@
 
 - Find the item with `spotify-api search`, or `spotify-api library` for the caller's own playlists and saved items. Start it with `spotify-api play --context-uri <uri>`. When the caller names a device, add `--target-device-id` with an ID from `spotify-api devices`. "On Spotify" names the service, not a device.
 
+- Spotify's DJ is a playlist titled "DJ". Find and start it like any other playlist, but start only a result titled exactly "DJ". If the lookup finds only playlists with other titles, say DJ was not found, name the closest one, and ask before starting it. When nothing matches, follow Results below.
+
 ### Results
 
 - If the lookup returns `not_found`, relay `catalog_fallback.message` verbatim when present. Otherwise say the item was not found on Spotify. Play nothing else.

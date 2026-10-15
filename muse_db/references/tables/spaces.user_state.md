@@ -42,6 +42,10 @@ Artifact favorites, access history and ordering.
 
   Unix epoch milliseconds of the last recipient sharing choice change.
 
+- `sharing_accept_reported_at_ms` uses `bigint` and is nullable.
+
+  Unix epoch milliseconds when this VM settled its acceptance report for an accepted received share. Settled means the control plane gave a definitive answer, which may have recorded nothing (for example after a save made before the owner listed this recipient), so a value does not prove that the owner sees the acceptance. NULL on an accepted row means the report is unsettled; confidential VMs and shortcodes that are not Cloudflare shares never report and keep NULL. Other rows keep NULL. Acceptances recorded before reporting existed were settled without a report.
+
 ## Keys and relationships
 
 - PRIMARY KEY `user_state_pkey` covers `space_slug`.

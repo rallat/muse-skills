@@ -26,6 +26,8 @@ Checkpoints and external references for checkout operations.
 
 - `bound_at_ms` uses `bigint` and is nullable.
 
+- `execution_observation` uses `jsonb` and is nullable.
+
 ## Keys and relationships
 
 - FOREIGN KEY `checkout_spend_checkpoints_operation_id_fkey` covers `operation_id`. References [runtime.checkout_spend_operations](/opt/muse/skills/muse_db/references/tables/runtime.checkout_spend_operations.md), columns `operation_id`.

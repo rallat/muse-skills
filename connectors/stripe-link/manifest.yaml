@@ -23,6 +23,14 @@ request_quota:
     # only softens quota exceedance for requests that classify.
     - stripe-link-checkout-card
 actions:
+  read:
+    default: allow
+    label: Read permissions
+    methods:
+      financial_insights:
+        label: Read transactions
+        requires_capabilities:
+          - financial_insights
   write:
     default: ask
     label: Write and delete permissions

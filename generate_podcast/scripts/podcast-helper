@@ -183,7 +183,7 @@ def main():
         elif args.command == "generate-slug":
             cmd_generate_slug(args)
     except Exception as e:
-        print(json.dumps({"ok": False, "error": str(e)}), file=sys.stdout)
+        print(json.dumps({"ok": False, "error": str(e)}, separators=(",", ":")), file=sys.stdout)
         sys.exit(1)
 
 
@@ -598,7 +598,7 @@ def cmd_generate(args):
     if generation_id is None:
         return _generate(args)
     if not re.fullmatch(r"prepared-[a-f0-9]{64}", generation_id) or args.publish:
-        print(json.dumps({"ok": False, "error": "A prepared generation requires its stable identity and cannot publish"}))
+        print(json.dumps({"ok": False, "error": "A prepared generation requires its stable identity and cannot publish"}, separators=(",", ":")))
         sys.exit(1)
     directory = podcasts_dir() / generation_id
     directory.mkdir(parents=True, exist_ok=True)
@@ -609,9 +609,14 @@ def cmd_generate(args):
         audio = Path(episode.get("path", "")) if episode else None
         if (audio and audio.is_file() and audio.stat().st_size > 0
                 and (episode.get("duration_secs") or 0) > 0):
-            print(json.dumps({"ok": True, "slug": generation_id, "title": episode.get("title"),
-                              "path": episode["path"], "duration_secs": episode.get("duration_secs"),
-                              "published": False, "reused": True}))
+            print(
+                json.dumps(
+                    {"ok": True, "slug": generation_id, "title": episode.get("title"),
+                     "path": episode["path"], "duration_secs": episode.get("duration_secs"),
+                     "published": False, "reused": True},
+                    separators=(",", ":"),
+                )
+            )
             return
         return _generate(args)
 
@@ -619,7 +624,7 @@ def cmd_generate(args):
 def _generate(args):
     if args.publish and not args.feed_title:
         print(
-            json.dumps({"ok": False, "error": "--feed-title required with --publish"})
+            json.dumps({"ok": False, "error": "--feed-title required with --publish"}, separators=(",", ":"))
         )
         sys.exit(1)
 
@@ -648,7 +653,8 @@ def _generate(args):
     if not script_src.is_file():
         print(
             json.dumps(
-                {"ok": False, "error": f"script file not found: {args.script}"}
+                {"ok": False, "error": f"script file not found: {args.script}"},
+                separators=(",", ":"),
             )
         )
         sys.exit(1)
@@ -670,7 +676,8 @@ def _generate(args):
         if not topics_src.is_file():
             print(
                 json.dumps(
-                    {"ok": False, "error": f"topics file not found: {args.topics_file}"}
+                    {"ok": False, "error": f"topics file not found: {args.topics_file}"},
+                    separators=(",", ":"),
                 )
             )
             sys.exit(1)
@@ -694,7 +701,7 @@ def _generate(args):
     result = subprocess.run(tts_cmd, capture_output=True, text=True)
     if result.returncode != 0:
         stderr = result.stderr.strip() if result.stderr else "unknown error"
-        print(json.dumps({"ok": False, "error": f"tts failed: {stderr}"}))
+        print(json.dumps({"ok": False, "error": f"tts failed: {stderr}"}, separators=(",", ":")))
         sys.exit(1)
 
     tts_output = json.loads(result.stdout)
@@ -745,6 +752,10 @@ def _generate(args):
         "bytes": audio_bytes,
         "published": False,
     }
+    if "speakers" in tts_output:
+        output["speakers"] = tts_output["speakers"]
+    if result.stderr.strip():
+        output["tts_diagnostics"] = result.stderr.strip()
     if cover_path:
         output["cover"] = cover_path
 
@@ -770,7 +781,7 @@ def _generate(args):
             if "retryable" in pub_result:
                 output["retryable"] = bool(pub_result["retryable"])
 
-    print(json.dumps(output))
+    print(json.dumps(output, separators=(",", ":")))
 
 
 # ── update-cover ────────────────────────────────────────────────────
@@ -795,7 +806,8 @@ def cmd_update_cover(args):
     if not episode:
         print(
             json.dumps(
-                {"ok": False, "error": f"episode '{args.slug}' not found"}
+                {"ok": False, "error": f"episode '{args.slug}' not found"},
+                separators=(",", ":"),
             )
         )
         sys.exit(1)
@@ -813,7 +825,7 @@ def cmd_update_cover(args):
         f"{args.slug}-cover-{uuid.uuid4().hex[:8]}",
     )
     if not cover:
-        print(json.dumps({"ok": False, "error": "cover generation failed"}))
+        print(json.dumps({"ok": False, "error": "cover generation failed"}, separators=(",", ":")))
         sys.exit(1)
     if artifact_id is None:
         # A handle-less cover cannot travel the trusted publish path: the next
@@ -831,7 +843,8 @@ def cmd_update_cover(args):
                     "ok": False,
                     "error": "cover generation returned no trusted handle; "
                     "leaving the current cover unchanged",
-                }
+                },
+                separators=(",", ":"),
             )
         )
         sys.exit(1)
@@ -847,7 +860,8 @@ def cmd_update_cover(args):
                     "ok": False,
                     "error": "cover generation reused the presented path; "
                     "leaving the current cover unchanged",
-                }
+                },
+                separators=(",", ":"),
             )
         )
         sys.exit(1)
@@ -930,7 +944,7 @@ def cmd_update_cover(args):
             "episode is already published; the public feed keeps the previous "
             "art (no cover-only refresh exists)"
         )
-    print(json.dumps(result))
+    print(json.dumps(result, separators=(",", ":")))
 
 
 # ── catalog commands ────────────────────────────────────────────────
@@ -938,7 +952,7 @@ def cmd_update_cover(args):
 
 def cmd_manifest(args):
     if args.action == "read":
-        print(json.dumps(read_manifest()))
+        print(json.dumps(read_manifest(), separators=(",", ":")))
 
     elif args.action == "add-episode":
         catalog = read_manifest()
@@ -947,7 +961,8 @@ def cmd_manifest(args):
         if any(e.get("slug") == args.slug for e in catalog["episodes"]):
             print(
                 json.dumps(
-                    {"ok": False, "error": f"episode '{args.slug}' already exists"}
+                    {"ok": False, "error": f"episode '{args.slug}' already exists"},
+                    separators=(",", ":"),
                 )
             )
             sys.exit(1)
@@ -962,7 +977,7 @@ def cmd_manifest(args):
             "chunk_count": args.chunk_count,
         }
         upsert_catalog_episode(episode)
-        print(json.dumps({"ok": True, "slug": args.slug}))
+        print(json.dumps({"ok": True, "slug": args.slug}, separators=(",", ":")))
 
     elif args.action == "update-episode":
         catalog = read_manifest()
@@ -973,7 +988,8 @@ def cmd_manifest(args):
         if not episode:
             print(
                 json.dumps(
-                    {"ok": False, "error": f"episode '{args.slug}' not found"}
+                    {"ok": False, "error": f"episode '{args.slug}' not found"},
+                    separators=(",", ":"),
                 )
             )
             sys.exit(1)
@@ -1000,7 +1016,7 @@ def cmd_manifest(args):
             if feed.get("feed_title"):
                 upsert_catalog_feed(feed)
 
-        print(json.dumps({"ok": True, "slug": args.slug}))
+        print(json.dumps({"ok": True, "slug": args.slug}, separators=(",", ":")))
 
 
 def read_catalog_from_db():
@@ -1060,7 +1076,7 @@ def cmd_publish(args):
     result = do_publish(
         args.slug, args.feed_title, args.feed_description, args.cover_image
     )
-    print(json.dumps(result))
+    print(json.dumps(result, separators=(",", ":")))
 
 
 # Host-independent feed path prefix, matched the same way the Rust side matches
@@ -1538,7 +1554,7 @@ def cmd_save_to_spotify(args):
     result = do_save_to_spotify(
         args.slug, args.show_id, args.new_show, args.title, args.summary, args.image
     )
-    print(json.dumps(result))
+    print(json.dumps(result, separators=(",", ":")))
 
 
 def do_save_to_spotify(slug, show_id, new_show, title, summary, image):
@@ -1862,7 +1878,7 @@ def _resolve_spotify_show(show_id, new_show, upload):
 
 def cmd_generate_slug(args):
     slug = make_slug(args.title)
-    print(json.dumps({"ok": True, "slug": slug}))
+    print(json.dumps({"ok": True, "slug": slug}, separators=(",", ":")))
 
 
 def make_slug(title):

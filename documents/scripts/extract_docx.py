@@ -175,7 +175,7 @@ def main() -> int:
     with (outdir / "manifest.json").open("w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
 
-    print(json.dumps(manifest, ensure_ascii=False))
+    print(json.dumps(manifest, ensure_ascii=False, separators=(",", ":")))
     return 0
 
 

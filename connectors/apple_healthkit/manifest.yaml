@@ -8,6 +8,7 @@ cli:
 connector: apple_healthkit
 category: health
 display_name: Apple Health
+icon: apple_healthkit
 description: Read synced Apple Health data (daily metrics, sleep, workouts).
 # Connector id MUST equal this skill's `name` ("apple_healthkit") so the daemon
 # associates the manifest with the skill and runtime CLI-subcommand lookup

@@ -173,7 +173,7 @@ users threads get --params '{"userId":"me","id":"<thread_id>","format":"full"}'
 
 - Gmail enforces a per-account budget of request units, so run Gmail commands one at a time, combine overlapping searches and fetch full bodies or attachments only for relevant messages. `+triage --max N` costs up to `5 + 20N` units, `+read` costs 20 and `+unsubscribe` costs 20 per message.
 
-- A new `+send` costs 101 to 103 units, including up to two 1-unit sender reads when the account has no saved sender name, and a new `+draft` costs about 11. Replies and forwards add 20 to read the source, reply-all adds 1 and each forwarded attachment adds 20. A raw command costs the units of the Gmail method it calls.
+- A new `+send` costs 101 units, and a new `+draft` costs about 11. Replies and forwards add 20 to read the source, reply-all adds 1 and each forwarded attachment adds 20. A raw command costs the units of the Gmail method it calls.
 
 - A result with `kind: connector_rate_limited` and `terminal_for_attempt: true` ends Gmail work for this attempt. Report partial progress, and do not sleep, retry, delegate or schedule replacement work, because a later run can continue.
 

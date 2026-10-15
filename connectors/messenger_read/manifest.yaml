@@ -31,6 +31,7 @@ cli_subcommands:
   - "marketplace initiate"
   - "messages"
   - "participants add"
+  - "participants remove"
   - "react"
   - "repair"
   - "search"

@@ -1,10 +1,12 @@
-# Grocery and Meal Delivery
+# Grocery and Food Delivery
 
 - Use [Shopping](/opt/muse/skills/shopping/SKILL.md) for products a grocery store does not sell.
 
 ## Build the basket
 
 - Start from the user's own grocery list when they keep one in a connected app, and keep its quantities and notes.
+
+- A request for a grocery list does not ask you to change a cart, so build the list first and shop only when the user asks.
 
 - Choose a grocery service and store that deliver to the address or offer pickup near it, starting with one the user prefers. A user who is traveling may still be shopping for home.
 
@@ -55,14 +57,6 @@
 - The restaurant's own ordering can beat delivery apps on total cost or arrival time. Compare the delivered total, including fees and tip, before recommending one.
 
 - When the user would rather eat out, use [Restaurant Reservations](/opt/muse/skills/restaurant-reservations/SKILL.md).
-
-## Plan meals
-
-- A request for a meal plan or a list does not ask you to change a cart, so build the plan first and shop only when the user asks.
-
-- Plan around servings, dietary needs, allergies, budget and cooking time. Reuse ingredients across meals and account for food already on hand.
-
-- Leave out nutrition targets the user did not ask for. When they ask for targets or meal logging, use the Nutrition Tracking skill once `muse.skill_search` shows it for this session.
 
 ## Available connectors
 

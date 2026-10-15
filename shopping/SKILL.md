@@ -25,7 +25,19 @@
 - Use `browser.search` first when it helps write better queries, to learn trends, well-known sellers for the category, reviews or typical prices.
 
 - Run the request's product searches in parallel, with every requirement in each one:
-  - Meta Catalog with <!-- catalog-search-v1-only:start -->`/opt/hatch/bin/meta-catalog-search`<!-- catalog-search-v1-only:end --><!-- catalog-search-v2-only:start -->`/opt/hatch/bin/shopping catalog-search`<!-- catalog-search-v2-only:end -->, following the [Meta Catalog](/opt/hatch/connectors/meta_catalog_search/CONNECTOR.md) docs for its flags, image search and results.
+  - Meta Catalog, starting from this command and adding the flags the [Meta Catalog](/opt/hatch/connectors/meta_catalog_search/CONNECTOR.md) docs give for categories, gender, brands, sellers, prices and images:
+<!-- catalog-search-v1-only:start -->
+    ```text
+    catalog_results=$(mktemp "${TMPDIR:-/tmp}/meta-catalog-search.XXXXXX")
+    /opt/hatch/bin/meta-catalog-search --query "<product with every requirement>" --retries 2 --out "$catalog_results"
+    ```
+<!-- catalog-search-v1-only:end -->
+<!-- catalog-search-v2-only:start -->
+    ```text
+    catalog_results=$(mktemp "${TMPDIR:-/tmp}/shopping-catalog-search.XXXXXX")
+    /opt/hatch/bin/shopping catalog-search --query "<product with every requirement>" --retries 2 --out "$catalog_results"
+    ```
+<!-- catalog-search-v2-only:end -->
   - A browser product search with `browser.spawn_task`, briefed as below. Always run it, especially for home goods, unless the user asked only for Facebook Marketplace.
   - Facebook Marketplace with `/opt/hatch/bin/facebook-cli marketplace search` for used, local, pickup or tight-budget requests, following the Facebook connector's [Marketplace guide](/opt/hatch/connectors/facebook_cli/references/marketplace.md).
 
