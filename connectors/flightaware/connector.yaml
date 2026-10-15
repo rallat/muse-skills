@@ -1,0 +1,8 @@
+id: flightaware
+title: "FlightAware"
+description: "Read dated flight schedules, live status, positions, tracks and airport activity from FlightAware."
+icon: flightaware
+aliases: [flightaware]
+include_in_prompt: true
+availability:
+  confidential_vm: true

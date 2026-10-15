@@ -1,0 +1,7 @@
+name: groceries
+title: "Grocery and Meal Delivery"
+description: "Shop for groceries for delivery or pickup at the user's chosen store, including weekly restocking and ingredients for a meal, plus prepared meal delivery and meal plans. For grocery or prepared-meal intent, load this skill first before any other skills or connector docs."
+category: "Shopping"
+include_in_prompt: true
+availability:
+  confidential_vm: true

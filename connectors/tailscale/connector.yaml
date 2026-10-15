@@ -1,0 +1,8 @@
+id: tailscale
+title: "Tailscale"
+description: "Join this VM to the user's Tailscale or Headscale network and reach their private TCP services through the built-in proxy."
+icon: tailscale
+aliases: [tailscale]
+include_in_prompt: true
+availability:
+  confidential_vm: true
