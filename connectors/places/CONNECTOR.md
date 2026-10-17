@@ -18,6 +18,8 @@
 
 - For "best", trending or insider requests, `browser.search` returns web evidence and place results together, so use both. Cite web facts in the search's usual citation format.
 
+- Name only places a tool returned, and leave out permanently or temporarily closed places unless the user asked about them.
+
 ## Read details
 
 - `places details` takes only the numeric `place_id` values that `browser.search` or `places detect` returned, batched in one call. A name or URL cannot replace the ID.
@@ -38,6 +40,8 @@
 
 - Missing coordinates are unknown. Never derive them from a name or pair an ID with coordinates from another record.
 
+- Show the chosen places on one map as [map presentation](/opt/muse/skills/place-discovery/references/map-presentation.md) describes.
+
 ## Identify a place in a photo
 
 - `places detect --frame PATH --location "LAT,LNG,TIMESTAMP_MS"` resolves captured frames and their GPS into ranked candidates with `place_id`, `place_name` and `confidence`. Pass one `--location` per `--frame`, and use a returned ID for a details lookup.
@@ -50,7 +54,7 @@
 
 ## Related skills
 
-- [Grocery and Meal Delivery](/opt/muse/skills/groceries/SKILL.md)
+- [Grocery and Food Delivery](/opt/muse/skills/groceries/SKILL.md)
 
 - [Home Search](/opt/muse/skills/home-search/SKILL.md)
 
