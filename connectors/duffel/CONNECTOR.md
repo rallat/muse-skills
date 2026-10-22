@@ -112,18 +112,18 @@
 
 - When validation asks for a first-time payment profile, pass the account holder's email and legal name with `--customer-email`, `--customer-given-name` and `--customer-family-name` to both validation and booking. This profile is not a passenger, and it is created only after purchase approval.
 
-- List payment methods and choose the card as [Link by Stripe](/opt/hatch/connectors/stripe-link/CONNECTOR.md) describes. Then book once with its exact ID and the same booking JSON and seats:
+- List payment methods as [Link by Stripe](/opt/hatch/connectors/stripe-link/CONNECTOR.md) describes. Book once with the same booking JSON and seats. Add `--payment-method-id ID` only for a card the user chose for this purchase. Otherwise, approval preselects the default card or a usable card if none is default. The user can change it there.
 
 ```sh
 /opt/hatch/bin/stripe-link payment-methods list --format json
-/opt/hatch/bin/duffel book --offer-id OFFER --payment-method-id ID --booking-json JSON --seat 1:1:28B --seat 2:1:28C
+/opt/hatch/bin/duffel book --offer-id OFFER --booking-json JSON --seat 1:1:28B --seat 2:1:28C
 ```
 
 - `book` revalidates before any payment request. Its single approval covers the itinerary, travelers, seats and fees, fare terms, total, the first-time profile, a one-time virtual card, 3DS and immediate ticketing. Any change to the flight, fare, date, passengers, services or total needs a fresh approval.
 
 - Held orders, Duffel balance payment, inline cards and raw order APIs are not supported.
 
-- If Link is not connected, explain the one-time virtual card and share its connection link. An airline-site checkout is a fallback only when its secure payment handoff actually renders. If neither works, stop with the itinerary prepared and say that payment is blocked. Never ask for card details in chat or enter card data the user sent in chat on a website.
+- If Link is not connected, explain the one-time virtual card and share its connection link. For an airline-site fallback, use `browser.browse` and follow `~/docs/chat/payments-and-purchases.md`. A card the user supplies for that booking may go to the browser task as text with `wallet: null`; the browser checkout still requires payment approval. This does not enable inline cards in the Duffel API. If neither supported route works, stop with the itinerary prepared and say that payment is blocked.
 
 - Prefer one offer that covers the whole itinerary. Split it into separate bookings only with the user's agreement before the first `book`. Explain that each booking has its own approval, payment and terms, that later offers are not held, and that a later failure can leave earlier tickets booked.
 
