@@ -4,7 +4,7 @@
 
 - Establish the destination, dates, number of rooms and who sleeps in each, with every child's exact age. Use the known budget, location and accessibility needs. Guest identity and payment can wait until the user chooses a rate.
 
-- Read [hotel comparison](references/hotels.md) before searching. It covers sources, ranking the full stay and the map.
+- Read [hotel comparison](references/hotels.md) before searching. It covers sources, ranking the full stay and how to show results.
 
 ## Compare full stays across sources
 
@@ -40,11 +40,15 @@
 
 - These connectors depend on the user's channel or devices. `muse.connector_search` shows which ones this session has.
 
-- [Expedia Lodging](/opt/hatch/connectors/expedia/CONNECTOR.md) for Expedia search, live room rates and native checkout of pay-now rates.
+- [Expedia](/opt/hatch/connectors/expedia/CONNECTOR.md) for Expedia search, live room rates and native checkout of pay-now rates.
+
+- [Agoda](/opt/hatch/connectors/agoda/CONNECTOR.md) for stays, prices and guest reviews, with returned links to book on Agoda.
+
+- [ShopBack](/opt/hatch/connectors/shopback_mcp/CONNECTOR.md) for hotel prices from travel partners and the cashback each offer pays.
 
 ## Websites
 
-- Check rates with `browser.spawn_task` on the property's own site and on sellers. Carry the exact dates, rooms with their occupants and children's ages, the room type and the cancellation terms, and ask for the full total and payment timing.
+- Check rates with `browser.browse` on the property's own site and on sellers. Carry the exact dates, rooms with their occupants and children's ages, the room type and the cancellation terms, and ask for the full total and payment timing.
 
 - [Google Hotels](https://www.google.com/travel/hotels) compares sellers for the same property. [Booking.com](https://www.booking.com/) has wide coverage, especially in Europe.
 
