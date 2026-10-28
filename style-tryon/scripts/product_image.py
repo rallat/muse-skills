@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
-"""Fetch or crop a product image for Style Try-on.
+"""Save or crop product photos for Style Try-on.
 
-Download mode finds the product's image URL in the shopping result files (or
-its product details), downloads it, checks it is a JPG, PNG, or WebP, and saves
-it under ~/workspace/shopping/tryon/. --alternates instead saves up to three
-other views of a catalog product, one path per line. Crop mode (--from-file
-with --crop-top-percent) keeps everything below the given share of the image
-height, removing a model's face above the product. --rebuild-results writes a
-shopping result file for catalog products whose original result file is gone.
-
-Prints the saved workspace-relative path, or `failed` with the reason on
-stderr.
+Saving downloads each product's main image into ~/workspace/shopping/tryon/, in
+parallel, plus up to three other views for products named with --alternates-for.
+Fallback products download alongside, and each product whose photo fails is
+replaced by the next fallback that saved. The URL comes from the shopping result
+files, else from catalog product details. A browser product uses the copy of its
+image that its shopping results card hosts on Meta's CDN when there is one, since
+some merchants stall direct downloads.
+--crop keeps what is below a share of each photo's height, removing a model's
+face. --rebuild-results writes a result file for catalog products whose original
+is gone. Each photo gets one output line, its saved path or `failed (<reason>)`, a
+fallback's line names the product it replaces, and `failed` alone means nothing
+was saved.
 """
 
 from __future__ import annotations
 
 import argparse
+import collections
+import concurrent.futures
+import glob
 import http.client
 import json
 import os
@@ -31,7 +36,14 @@ HOME = Path(os.path.expanduser("~"))
 TRYON_DIR = HOME / "workspace" / "shopping" / "tryon"
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
 MAX_ALTERNATES = 3
+MAX_FALLBACKS = 2
+MAX_CROP_PERCENT = 60
+# Product images arrive in a second or two, so give up early on a stalled merchant.
+IMAGE_TIMEOUT_SECONDS = 10
+DETAILS_TIMEOUT_SECONDS = 20
 SHOPPING_CLI = "/opt/hatch/bin/shopping"
+# The files shopping.resolve_results writes for results cards, newest first.
+CARD_RESULT_GLOBS = ("/var/tmp/hatch-shopping-results-*.json", "/tmp/hatch-shopping-results-*.json")
 # Optional product-details fields that shopping.resolve_results reads.
 OPTIONAL_RESULT_FIELDS = ("brand", "sale_price", "currency")
 CHECKOUT_FLAGS = ("is_agentic_checkout_creation_enabled", "is_agentic_checkout_completion_enabled")
@@ -77,29 +89,57 @@ def safe_stem(value: str) -> str:
     return stem[:80] or "product"
 
 
-def find_image_url(product_id: str, result_files: list[str]) -> str | None:
-    def walk(node: object) -> str | None:
-        if isinstance(node, dict):
-            if product_id in (node.get("product_id"), node.get("result_id"), node.get("id")):
-                url = node.get("image_url")
-                if isinstance(url, str) and url.startswith(("https://", "http://")):
-                    return url
-            for value in node.values():
-                if (found := walk(value)) is not None:
-                    return found
-        elif isinstance(node, list):
-            for value in node:
-                if (found := walk(value)) is not None:
-                    return found
-        return None
+def is_web_url(value: object) -> bool:
+    return isinstance(value, str) and value.startswith(("https://", "http://"))
 
+
+def result_records(path: str) -> list[dict]:
+    """Every object in a result file, or none if it can't be read."""
+    try:
+        data = json.loads(Path(os.path.expanduser(path)).read_text())
+    except (OSError, ValueError):
+        return []
+    records = []
+    nodes = collections.deque([data])
+    while nodes:
+        node = nodes.popleft()
+        if isinstance(node, dict):
+            records.append(node)
+            nodes.extend(node.values())
+        elif isinstance(node, list):
+            nodes.extend(node)
+    return records
+
+
+def find_product(product_id: str, result_files: list[str]) -> dict | None:
     for path in result_files:
-        try:
-            data = json.loads(Path(os.path.expanduser(path)).read_text())
-        except (OSError, ValueError):
-            continue
-        if (url := walk(data)) is not None:
-            return url
+        for record in result_records(path):
+            if product_id in (record.get("product_id"), record.get("result_id"), record.get("id")):
+                if is_web_url(record.get("image_url")):
+                    return record
+    return None
+
+
+def card_image_url(product: dict, result_files: list[str]) -> str | None:
+    """The card's image for a browser product when it differs from the merchant's,
+    which is the copy hosted on Meta's CDN. Cards match by product page URL."""
+    page = product.get("url")
+    if not is_web_url(page):
+        return None
+    cards = sorted(
+        {path for pattern in CARD_RESULT_GLOBS for path in glob.glob(pattern)},
+        key=lambda path: os.path.getmtime(path) if os.path.exists(path) else 0,
+        reverse=True,
+    )
+    for path in [*result_files, *cards]:
+        for record in result_records(path):
+            if (
+                record.get("url") == page
+                and record.get("is_image_available") is True
+                and is_web_url(record.get("image_url"))
+                and record["image_url"] != product["image_url"]
+            ):
+                return record["image_url"]
     return None
 
 
@@ -110,7 +150,7 @@ def catalog_product(product_id: str) -> dict | None:
     try:
         out = subprocess.run(
             [SHOPPING_CLI, "product-details", "--product-id", product_id],
-            capture_output=True, text=True, timeout=60, check=True,
+            capture_output=True, text=True, timeout=DETAILS_TIMEOUT_SECONDS, check=True,
         ).stdout
         product = json.loads(out).get("product")
     except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
@@ -132,7 +172,7 @@ def fetch_image(url: str, stem: str) -> Path:
         headers={"User-Agent": "Mozilla/5.0", "Accept": "image/png,image/jpeg,image/webp"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=IMAGE_TIMEOUT_SECONDS) as response:
             data = response.read(MAX_IMAGE_BYTES + 1)
     except (OSError, ValueError, http.client.HTTPException) as error:
         # ValueError and HTTPException cover malformed URLs, such as a raw space
@@ -152,34 +192,113 @@ def fetch_image(url: str, stem: str) -> Path:
     return target
 
 
-def download(url: str, stem: str) -> int:
-    try:
-        target = fetch_image(url, stem)
-    except ImageError as error:
-        return fail(str(error))
-    print(display_path(target))
+def fetch_first(urls: list[str], stem: str) -> Path:
+    """Saves the first of these URLs that downloads, reporting the last failure."""
+    for url in urls[:-1]:
+        try:
+            return fetch_image(url, stem)
+        except ImageError as error:
+            print(f"product_image: {stem}: trying the merchant's image: {error}", file=sys.stderr)
+    return fetch_image(urls[-1], stem)
+
+
+def save_product(product_id: str, result_files: list[str], with_alternates: bool) -> list[str]:
+    product = find_product(product_id, result_files)
+    url = product["image_url"] if product else None
+    urls = catalog_image_urls(catalog_product(product_id)) if url is None or with_alternates else []
+    url = url or next(iter(urls), None)
+    if url is None:
+        raise ImageError("no image URL found for this product")
+    card_url = card_image_url(product, result_files) if product and product_id.startswith("browser:") else None
+    stem = safe_stem(product_id)
+    others = [other for other in urls if other != url][:MAX_ALTERNATES] if with_alternates else []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1 + len(others)) as pool:
+        main = pool.submit(fetch_first, [card_url, url] if card_url else [url], stem)
+        views = [pool.submit(fetch_image, other, f"{stem}-view{n}") for n, other in enumerate(others, start=2)]
+    lines = [f"{product_id}: {display_path(main.result())}"]
+    for n, view in enumerate(views, start=2):
+        try:
+            lines.append(f"{product_id} view {n}: {display_path(view.result())}")
+        except ImageError as error:
+            print(f"product_image: {product_id}: skipped one view: {error}", file=sys.stderr)
+    return lines
+
+
+def download(
+    product_ids: list[str], fallback_ids: list[str], result_files: list[str], alternates_for: set[str]
+) -> int:
+    everything = product_ids + fallback_ids
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(everything)) as pool:
+        futures = {
+            product_id: pool.submit(save_product, product_id, result_files, product_id in alternates_for)
+            for product_id in everything
+        }
+
+    def outcome(product_id: str) -> list[str] | ImageError:
+        try:
+            return futures[product_id].result()
+        except ImageError as error:
+            return error
+
+    saved_fallbacks = (outcome(fallback_id) for fallback_id in fallback_ids)
+    spare = (lines for lines in saved_fallbacks if not isinstance(lines, ImageError))
+    saved = 0
+    for product_id in product_ids:
+        lines = outcome(product_id)
+        if isinstance(lines, ImageError):
+            print(f"{product_id}: failed ({lines})")
+            if (lines := next(spare, None)) is None:
+                continue
+            lines = [f"{lines[0]} (in place of {product_id})", *lines[1:]]
+        print("\n".join(lines))
+        saved += 1
+    if not saved:
+        print("failed")
+        return 1
     return 0
 
 
-def alternates(product_id: str, result_files: list[str]) -> int:
-    urls = catalog_image_urls(catalog_product(product_id))
-    if not urls:
-        return fail("no product details or images for this product")
-    # Download mode used the result file's image, or the first product image.
-    primary = find_image_url(product_id, result_files) or urls[0]
-    stem = safe_stem(product_id)
+def crop_one(source: str, percent: int) -> str:
+    if not 1 <= percent <= MAX_CROP_PERCENT:
+        raise ImageError(f"crop percent must be between 1 and {MAX_CROP_PERCENT}")
+    path = Path(os.path.expanduser(source))
+    if not path.is_absolute():
+        path = HOME / path
+    gm = shutil.which("gm")
+    if gm is None or not path.is_file():
+        raise ImageError("missing gm or source image")
+    try:
+        size = subprocess.run(
+            [gm, "identify", "-format", "%w %h", str(path)],
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout.split()
+        width, height = int(size[0]), int(size[1])
+        top = height * percent // 100
+        target = path.with_name(f"{path.stem}-crop.png")
+        subprocess.run(
+            [gm, "convert", str(path), "-crop", f"{width}x{height - top}+0+{top}", str(target)],
+            capture_output=True, timeout=60, check=True,
+        )
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError) as error:
+        raise ImageError(f"crop failed: {error}") from error
+    return display_path(target)
+
+
+def crop(specs: list[str]) -> int:
     saved = 0
-    for url in (url for url in urls if url != primary):
-        if saved == MAX_ALTERNATES:
-            break
+    for spec in specs:
+        source, _, percent = spec.rpartition("=")
         try:
-            target = fetch_image(url, f"{stem}-alt{saved + 1}")
+            if not source or not percent.isdigit():
+                raise ImageError("give PATH=PERCENT")
+            print(f"{source}: {crop_one(source, int(percent))}")
+            saved += 1
         except ImageError as error:
-            print(f"product_image: skipped one view: {error}", file=sys.stderr)
-            continue
-        print(display_path(target))
-        saved += 1
-    return 0 if saved else fail("no other views of this product")
+            print(f"{source or spec}: failed ({error})")
+    if not saved:
+        print("failed")
+        return 1
+    return 0
 
 
 def rebuild_results(product_ids: list[str]) -> int:
@@ -217,72 +336,56 @@ def rebuild_results(product_ids: list[str]) -> int:
     return 0
 
 
-def crop(source: str, percent: int) -> int:
-    if not 1 <= percent <= 90:
-        return fail("--crop-top-percent must be between 1 and 90")
-    path = Path(os.path.expanduser(source))
-    if not path.is_absolute():
-        path = HOME / path
-    gm = shutil.which("gm")
-    if gm is None or not path.is_file():
-        return fail("cannot crop: missing gm or source image")
-    try:
-        size = subprocess.run(
-            [gm, "identify", "-format", "%w %h", str(path)],
-            capture_output=True, text=True, timeout=30, check=True,
-        ).stdout.split()
-        width, height = int(size[0]), int(size[1])
-        top = height * percent // 100
-        target = path.with_name(f"{path.stem}-crop.png")
-        subprocess.run(
-            [gm, "convert", str(path), "-crop", f"{width}x{height - top}+0+{top}", str(target)],
-            capture_output=True, timeout=60, check=True,
-        )
-    except (OSError, subprocess.SubprocessError, ValueError, IndexError) as error:
-        return fail(f"crop failed: {error}")
-    print(display_path(target))
-    return 0
-
-
 def main() -> int:
-    parser = Parser(description=__doc__)
+    parser = Parser(description=__doc__, allow_abbrev=False)
     parser.add_argument(
         "--product-id", action="append", default=[],
-        help="catalog product_id or browser result_id; repeat only with --rebuild-results",
+        help="catalog product_id or browser result_id; repeatable",
     )
-    parser.add_argument("--results", action="append", default=[], help="shopping result file; repeat for each")
-    parser.add_argument("--alternates", action="store_true", help="save up to three other views of the product")
+    parser.add_argument(
+        "--results", action="append", default=[],
+        help="shopping result file behind the products; repeatable",
+    )
+    parser.add_argument(
+        "--fallback-id", action="append", default=[],
+        help=f"product to use in place of one whose photo fails, in order; up to {MAX_FALLBACKS}",
+    )
+    parser.add_argument(
+        "--alternates-for", action="append", default=[],
+        help="catalog product_id to save with its other views; repeatable",
+    )
+    parser.add_argument(
+        "--crop", action="append", default=[], metavar="PATH=PERCENT",
+        help="keep what is below PERCENT of the photo's height; repeatable",
+    )
     parser.add_argument("--rebuild-results", action="store_true", help="write a result file from product details")
-    parser.add_argument("--from-file", help="crop this saved image instead of downloading")
-    parser.add_argument("--crop-top-percent", type=int, help="with --from-file: drop this top share of the height")
     args = parser.parse_args()
 
-    if args.from_file:
-        if args.crop_top_percent is None:
-            return fail("--from-file needs --crop-top-percent")
-        return crop(args.from_file, args.crop_top_percent)
-    if args.rebuild_results:
-        if not args.product_id:
-            return fail("--rebuild-results needs --product-id")
-        return rebuild_results(args.product_id)
-    if len(args.product_id) > 1:
-        return fail("give one --product-id")
-    product_id = args.product_id[0] if args.product_id else None
-    if product_id is None:
+    if args.crop:
+        if args.product_id or args.rebuild_results:
+            return fail("use --crop on its own")
+        return crop(args.crop)
+
+    # --alternates-for adds a product only when it isn't a spare, so a head-item
+    # spare keeps its replacement role.
+    product_ids = list(dict.fromkeys(
+        args.product_id + [item for item in args.alternates_for if item not in args.fallback_id]
+    ))
+    if not product_ids:
         return fail("give --product-id")
-    if args.alternates:
-        return alternates(product_id, args.results)
-    url = find_image_url(product_id, args.results)
-    if url is None:
-        urls = catalog_image_urls(catalog_product(product_id))
-        url = urls[0] if urls else None
-    if url is None:
-        return fail("no image URL found for this product")
-    return download(url, safe_stem(product_id))
+    if args.rebuild_results:
+        if args.fallback_id:
+            return fail("--fallback-id only applies to saving photos")
+        return rebuild_results(product_ids)
+    fallback_ids = [fallback for fallback in dict.fromkeys(args.fallback_id) if fallback not in product_ids]
+    if len(fallback_ids) > MAX_FALLBACKS:
+        print(f"product_image: using only the first {MAX_FALLBACKS} --fallback-id", file=sys.stderr)
+        fallback_ids = fallback_ids[:MAX_FALLBACKS]
+    return download(product_ids, fallback_ids, args.results, set(args.alternates_for))
 
 
 if __name__ == "__main__":
-    # The skill reads stdout for a path or `failed`, so no error may escape as a
+    # The skill reads stdout for paths or `failed`, so no error may escape as a
     # traceback.
     try:
         sys.exit(main())
