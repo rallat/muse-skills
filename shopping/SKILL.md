@@ -28,7 +28,9 @@
 
 - Do not perform a product search first and narrow afterwards, because an unresolved required attribute returns wrong products.
 
-- Apply every resolved attribute to every search for the request, refinements included.
+- Apply each resolved attribute to every search it governs, refinements included. Keep an item-specific variant with that item, and repeat a shared requirement on every applicable search. When several items share an aggregate constraint, such as an outfit's total budget, enforce it when combining their results rather than applying the full constraint to each item.
+
+- Treat relevant profile tastes such as color, material and style as preferences unless the current conversation makes them requirements.
 
 - During a browser checkout, ask for every missing choice together in one message, in plain text when several need answers, as `~/docs/chat/payments-and-purchases.md` describes.
 
@@ -290,6 +292,14 @@
 
 - Compare a used item with a new one on transport, inspection, seller reliability and the missing warranty, and keep new, used and refurbished offers distinct.
 
+### Search after a subagent identifies the product
+
+- For a shopping handoff from another app, use the product information returned by the subagent and resolve any missing required attributes before searching. Read a shared post again only if that information is incomplete.
+
+- For these handoffs, run catalog searches in the main conversation and start any required `browser.browse` there, rather than asking another subagent to search. Follow the search rules above and the matching social-link workflow: start catalog and browser searches together when required, without waiting for catalog results. Keep catalog-first and direct-results paths, and honor an explicit catalog-only request.
+
+- Before presenting final results, check that every required search has finished. Start missing searches in the main conversation, without repeating ones already running or completed. Identifying the product does not finish the shopping request.
+
 ## Complete the purchase
 
 - Route the purchase from the main conversation, through direct checkout or `browser.browse`. The browser owns its focused login and payment workers. Do not delegate live shopping to a subagent.
@@ -300,11 +310,11 @@
 
 - For catalog products, confirm each selected product's exact variant as the [Meta Catalog](/opt/hatch/connectors/meta_catalog_search/CONNECTOR.md) docs describe. When its product details carry a `checkout_token`, check out as the [Shopify UCP](/opt/hatch/connectors/shopify-ucp/CONNECTOR.md) docs describe, whatever its checkout flags say.
 
-- Otherwise follow [browser checkout](references/browser-checkout.md) in one browser task through confirmation.
+- Otherwise follow [browser checkout](/opt/muse/skills/shopping/references/browser-checkout.md). For a request to buy, assign the browser task to complete checkout and confirm the order was placed.
 
-- Products with a `checkout_token` keep their merchant cart as the Shopify UCP connector docs describe, and a connector with its own cart support keeps it there. Otherwise, ask `browser.browse` to build the merchant cart with the specified variants and quantities and prepare it for confirmation, without purchasing, and continue the same task when the user changes the cart. The store holds, prices and discounts that basket, so never keep a list of your own as a cart. Follow the connector's instructions for cart reads, changes and widgets.
+- Products with a `checkout_token` keep their merchant cart as the Shopify UCP connector docs describe, and a connector with its own cart support keeps it there. Otherwise, have the browser task build the merchant cart with the specified variants and quantities. Continue the same task when the user changes the cart. The store holds, prices and discounts that basket, so do not keep a list of your own as a cart. Follow the connector's instructions for cart reads, changes and widgets.
 
-- Keep the catalog `cart_id` or browser `task_id` in context, and never show internal IDs to the user. Cart confirmations return through the browser task to this conversation, each with its own `confirmation_id`, and payment authorization uses the payment approval interface. Do not ask for either decision twice.
+- Keep the catalog `cart_id` or browser `task_id` in context. Do not show internal IDs to the user. Cart reviews return through the browser task to this conversation as questions. Answer with `browser.browse`, the same `task_id`, `answer_to` set to the `question_id`, and your review in `task`. Payment authorization uses the payment approval interface. Do not ask for either decision twice.
 
 - Once the user chooses, carry the exact variant, merchant, quoted total and its source, and the delivery estimate into checkout.
 

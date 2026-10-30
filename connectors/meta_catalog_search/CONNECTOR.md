@@ -33,16 +33,19 @@ catalog_results=$(mktemp "${TMPDIR:-/tmp}/meta-catalog-search.XXXXXX")
 <!-- catalog-search-v2-only:start -->
 - Run `/opt/hatch/bin/shopping catalog-search` with up to eight semantic `--query` values, using only as many as help. Write the results to a new file with `--out` and pass `--retries 2`. The default is 20 products per query, and `--num-results` or `-n` changes it.
 
-- Pass every user requirement as a flag on every search, the first one included. A requirement without its own flag, such as a size, model, variant or compatibility, goes in `--require`. A search with `--require` needs at least one `--query`, an image search included, and items with different requirements, such as different sizes, need separate searches.
+- Pass every requirement through its matching argument on every search it applies to, the first one included. A model, compatibility or other requirement without its own argument goes in `--require`, which needs at least one `--query`.
+
+- Size, color, and material apply to every `--query` in the command. Use separate commands for items that need different values.
 
 Example usage:
 - Base search showing the shared flags. `--intent` is optional:
 ```text
 catalog_results=$(mktemp "${TMPDIR:-/tmp}/shopping-catalog-search.XXXXXX")
 /opt/hatch/bin/shopping catalog-search \
-  --query "Nike men's cushioned daily training shoes from Nordstrom" \
+  --query "Nike men's cushioned daily training shoes US size 10 from Nordstrom" \
   --category footwear --gender male --restrict-brand Nike \
-  --require "US men's size 10" \
+  --size "US men's size 10" \
+  --require "wide fit" \
   --domain nordstrom.com --currency USD --max-price 12000 \
   --retries 2 --out "$catalog_results"
 ```
@@ -102,6 +105,12 @@ catalog_results=$(mktemp "${TMPDIR:-/tmp}/shopping-catalog-search.XXXXXX")
 
 - `--prefer-brand` takes one brand the user favors but does not require. Repeat it for multiple brands. Also include each preferred brand in a `--query` with the product requirements.
 
+- `--size` takes one size to use for this search. Repeat it for multiple sizes.
+
+- `--color` takes one color to use for this search. Repeat it for multiple colors.
+
+- `--material` takes one material to use for this search. Repeat it for multiple materials.
+
 - Always pass `--domain` when the user names a retailer, giving its hostname without a scheme, path or port. Repeat it for multiple retailers.
 
 - `--currency` takes a three-letter code, which also selects the market, and defaults to the shopper's currency. `--min-price` and `--max-price` are inclusive bounds in hundredths of that currency, so `2500` means 25.00.
@@ -127,6 +136,7 @@ catalog_results=$(mktemp "${TMPDIR:-/tmp}/shopping-catalog-search.XXXXXX")
 
 ## Read the results
 
+<!-- product-search-improvements-off-only:start -->
 - Preview products while keeping their IDs and leaving out image URLs:
 
 ```text
@@ -147,6 +157,40 @@ jq -r '
 - Keep `product_id` in every projection you print, because `shopping.resolve_results` selects by it. Pass the original results file to the resolver so the signed image URLs reach the cards without entering your reply.
 
 - Select only products that have a `url`, `name` and `image_url`, because `shopping.resolve_results` rejects the whole call when a selected catalog product lacks one.
+<!-- product-search-improvements-off-only:end -->
+<!-- product-search-improvements-on-only:start -->
+<!-- catalog-search-v1-only:start -->
+- Preview products while keeping their IDs and leaving out image URLs:
+
+```text
+jq -r '.products[0:20][] | [.product_id, .brand, .name, (.sale_price // .price), .seller_type, .seller_quality, .rating, .size] | @tsv' "$catalog_results"
+```
+
+- Check every result against each firm requirement before selecting it, because `--prefer-brand` and `--domain` can backfill with others. For example, keep only one seller's products at or under 100.00:
+
+```text
+jq -r '
+  .products[]
+  | select(.url // "" | test("^https?://([^/]+\\.)?nordstrom\\.com(/|$)"))
+  | select(((.sale_price // .price // "") | gsub("[^0-9.]"; "")) as $p | $p != "" and ($p | tonumber) <= 100)
+  | [.product_id, .brand, .name, (.sale_price // .price), .seller_type, .seller_quality] | @tsv
+' "$catalog_results"
+```
+
+- Keep `product_id` in every projection you print, because `shopping.resolve_results` selects by it. Pass the original results file to the resolver so the signed image URLs reach the cards without entering your reply.
+
+- Select only products that have a `url`, `name` and `image_url`, because `shopping.resolve_results` rejects the whole call when a selected catalog product lacks one.
+<!-- catalog-search-v1-only:end -->
+<!-- catalog-search-v2-only:start -->
+- Choose products from the preview instead of listing the results file.
+
+- Check every result against each firm requirement before selecting it, because `--prefer-brand` and `--domain` can backfill with others. When the user requires a retailer you passed with `--domain`, select only rows whose `domain_match` is `y`, or, for rows read with `jq`, whose `url` host is that domain or one of its subdomains.
+
+- The preview leaves out URLs, so read `[.product_id, .url]` with one `jq` call for just the products you verify.
+
+- Every product in the results file has the `url`, `name` and `image_url` that `shopping.resolve_results` needs.
+<!-- catalog-search-v2-only:end -->
+<!-- product-search-improvements-on-only:end -->
 
 - Each product has `product_id`, `url`, `name`, `brand`, `price`, `currency`, `description` and `image_url`, plus `sale_price` only when the source shows a real sale. When known, it adds `color`, `material`, `size`, `gender`, `category` and `rating`.
 
